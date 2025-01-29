@@ -1,0 +1,55 @@
+####
+# Groups of files 
+####
+# pyinstaller results
+build/
+*.spec
+
+# pyreverse byproducts
+*.dot
+*.vcg
+
+# Emacs autosaves
+*~
+
+# Python bytecode
+*.pyc
+
+# Log files 
+*.log
+
+# Pickled output files 
+*.pickle
+
+# Apple Desktop Services Store file
+.DS_store
+
+####
+# Directories
+####
+
+# virtual environments
+venv/
+
+# VSCode settings
+.vscode/
+
+# pycharm settings
+.idea/
+
+# Results of an optic flow run.
+of_results/
+
+# Publication and conference datasets 
+local_data/
+local/
+# in case it's a symlink
+local_data
+local
+
+# Figure output files
+figures/
+
+# Distribution and build files
+dist/
+satkit/satkit.egg-info/
