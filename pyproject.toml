@@ -1,12 +1,13 @@
 [project]
-name = "maps"
-version = "0.1.0"
+name = "mason-alberta-phonetic-segmenter"
+version = "0.4.0"
 description = "Add your description here"
 readme = "README.md"
 authors = [
-    { name = "Pertti Palo", email = "giuthas@gmail.com" }
+  {email = "matthew.curtis.kelley@gmail.com"},
+  {name = "Matthew C. Kelley, Scott James Perry, Benjamin V. Tucker, Pertti Palo"},
 ]
-requires-python = ">=3.13"
+requires-python = "=3.11"
 dependencies = []
 
 [project.scripts]
