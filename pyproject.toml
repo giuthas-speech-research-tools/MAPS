@@ -1,14 +1,23 @@
 [project]
 name = "mason-alberta-phonetic-segmenter"
 version = "0.4.0"
-description = "Add your description here"
+description = "Mason-Alberta Phonetic Segmenter"
 readme = "README.md"
 authors = [
   {email = "matthew.curtis.kelley@gmail.com"},
   {name = "Matthew C. Kelley, Scott James Perry, Benjamin V. Tucker, Pertti Palo"},
 ]
-requires-python = "=3.11"
-dependencies = []
+requires-python = ">=3.11.11,<3.12"
+dependencies = [
+    "natsort>=8.4.0",
+    "numpy>=1.24.3",
+    "python-speech-features>=0.6",
+    "scipy>=1.15.1",
+    "soxr>=0.5.0.post1",
+    "tensorflow===2.12.1",
+    "textgrid>=1.6.1",
+    "tqdm>=4.67.1",
+]
 
 [project.scripts]
 maps = "maps:run_maps_cli"

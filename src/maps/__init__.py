@@ -1,2 +1,1 @@
-def main() -> None:
-    print("Hello from maps!")
+from .cli import run_maps_cli
