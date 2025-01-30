@@ -61,6 +61,13 @@ options:
 
 The required package are listed in the `requirements.txt` file. They can be installed using `pip install -r requirements.txt`.
 
+Alternatively, if you have [uv](https://docs.astral.sh/uv/) installed you can
+run `uv build` at the project root. After this `uv run maps` will replace
+`python maps.py` in the above instructions or you can install maps as a command
+line tool by running `uv tool install .` after which the command `maps` should
+work equivalently in any directory.
+
+
 # Citation
 
 If you use this package in your work, please cite the associated paper:
