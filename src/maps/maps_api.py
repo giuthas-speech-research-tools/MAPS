@@ -1,6 +1,6 @@
 import os
 
-from src.maps.cli import run_maps_cli
+from maps.cli import run_maps_cli
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 from textgrid import textgrid

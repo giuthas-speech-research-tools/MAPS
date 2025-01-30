@@ -1,7 +1,7 @@
 from args import build_arg_parser
-from maps import EPS, force_align, FRAME_INTERVAL, make_textgrid, \
+from maps.maps_api import EPS, force_align, FRAME_INTERVAL, make_textgrid, \
     make_word_tier, WordString
-from utils import load_dictionary
+from maps.utils import load_dictionary
 
 
 def run_maps_cli():
