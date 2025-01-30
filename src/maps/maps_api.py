@@ -1,16 +1,9 @@
 import os
-
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-from textgrid import textgrid
-from tensorflow.keras.models import load_model
-from scipy.io import wavfile
-import numpy as np
-import re, sys, itertools
-from tqdm import tqdm
-import tensorflow as tf
-import python_speech_features as psf
+from functools import partial
+import multiprocessing as mp
+import re
+import itertools
 from pathlib import Path
-from maps.args import build_arg_parser
 import statistics
 import math
 import warnings
@@ -18,8 +11,18 @@ import natsort
 import soxr
 import tempfile
 
+import numpy as np
+import python_speech_features as psf
+# import tensorflow as tf
+from textgrid import textgrid
+from scipy.io import wavfile
+from tensorflow.keras.models import load_model
+from tqdm import tqdm
+
+from maps.args import build_arg_parser
 from maps.utils import align, collapse, load_dictionary
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 EPS = 1e-8
 
@@ -332,127 +335,35 @@ def run_maps_cli():
     if not quiet:
         print('BEGINNING ALIGNMENT')
     overwrite = args['overwrite']
-    for m_I, m_name in enumerate(model_names, start=1):
 
-        # if m_name.suffix == '.tf':
-        #     warnings.warn('TensorFlow has stopped supporting the tf format. Your models may need to be updated to the keras or h5 formats for long-term functionality.')
-        #     m = tf.keras.layers.TFSMLayer(m_name, call_endpoint='serving_default')
-        m = load_model(m_name, compile=False)
+    apply_args = [
+        (add_sil, args, filenames, m_I, m_name, model_names,
+        overwrite, quiet, use_ensemble, use_interp, word2phone)
+        for m_I, m_name in enumerate(model_names, start=1)
+    ]
+    with mp.Pool() as pool:
+        pool.starmap(apply_model, apply_args)
 
-        print(f'USING MODEL {m_name.name} ({m_I}/{len(model_names)})',
-              flush=True)
+    # procs = []
+    # # run the parallel processes
+    # for m_I, m_name in enumerate(model_names, start=1):
+    #     proc = mp.Process(target=apply_model,
+    #                       args=(
+    #                           add_sil, args, filenames, m_I, m_name,
+    #                           model_names, overwrite, quiet, use_ensemble,
+    #                           use_interp, word2phone
+    #                       ))
+    #     procs.append(proc)
+    #     proc.start()
+    #
+    # # finalize the parallel processes
+    # for proc in procs:
+    #     proc.join()
 
-        if not quiet:
-            filenames = tqdm(filenames)
+    # for m_I, m_name in enumerate(model_names, start=1):
+    #     apply_model(add_sil, args, filenames, m_I, m_name, model_names,
+    #                 overwrite, quiet, use_ensemble, use_interp, word2phone)
 
-        for tgname_base, wavname, transcription in filenames:
-
-            if use_ensemble:
-                tgname = tgname_base.parent / tgname_base.parts[-1].replace(
-                    '.TextGrid', f'_{m_name.stem}.TextGrid')
-            else:
-                tgname = tgname_base
-
-            if tgname.is_file() and not overwrite:
-                continue
-
-            sr, samples = wavfile.read(wavname)
-            duration = samples.size / sr  # convert samples to seconds
-
-            mfcc = psf.mfcc(samples, sr, winstep=FRAME_INTERVAL)
-            delta = psf.delta(mfcc, 2)
-            deltadelta = psf.delta(delta, 2)
-
-            x = np.hstack((mfcc, delta, deltadelta))
-            x = np.expand_dims(x, axis=0)
-
-            yhat = m.predict(x, verbose=0)
-
-            with open(transcription, 'r') as f:
-                word_labels = f.read().upper().split()
-
-            if add_sil and duration >= 0.045:
-                word_labels = ['sil'] + word_labels + ['sil']
-            elif add_sil:
-                warnings.warn(
-                    f'Silence segments not added to ends of transcription for {wavname} because duration of {duration} s is too short to have silence padding.')
-            word_chain = [word2phone[w] for w in word_labels]
-
-            best_score = np.inf
-
-            check_variants = args['check_variants']
-            best_w_string = 0
-
-            # Iterate through pronunciation variants to choose best alignment
-            # TODO: This iteration only checks segmental differences; stress differences won't get evaluated
-            #   and may end up semi-randomly chosen (or choose only first option)
-            #
-            # This method will very quickly cause combinatoric explosion since function words have
-            # several variants
-            for c in itertools.product(*word_chain):
-
-                # Remove empty 'sil' options
-                if add_sil:
-                    this_word_labels = [x for cI, x in zip(c, word_labels) if
-                                        cI]
-                    c = [x for x in c if x]
-                else:
-                    this_word_labels = word_labels
-
-                w_string = WordString(this_word_labels, c)
-                if add_sil and len(w_string.collapsed_string) > (
-                        duration - 0.015) / 0.01:
-                    if this_word_labels[0] == 'sil':
-                        this_word_labels = this_word_labels[1:]
-                        c = c[1:]
-                        warnings.warn(
-                            f'File {wavname} with duration {duration} too short for adding silence to transcription {w_string.collapsed_string}. Removing first silence label.')
-                    if this_word_labels[-1] == 'sil':
-                        this_word_labels = this_word_labels[:-1]
-                        c = c[:-1]
-                        warnings.warn(
-                            f'File {wavname} with duration {duration} too short for adding silence to transcription {w_string.collapsed_string}. Removing final silence label.')
-
-                    w_string = WordString(this_word_labels, c)
-
-                if best_w_string == 0:
-                    best_w_string = w_string
-
-                seq, M = force_align(w_string.collapsed_string, yhat)
-                if M[-1, -1] < best_score:
-                    best_seq = seq
-                    best_M = M
-                    best_score = M[-1, -1]
-                    best_w_string = w_string
-
-                if not check_variants:
-                    break
-
-            n_segs = len(best_w_string.collapsed_string)
-            if n_segs > 1 and duration < 0.015 + (0.01 * n_segs):
-                warnings.warn(
-                    f'File {wavname} with duration {duration} too short for collapsed {len(best_w_string.collapsed_string)}-segment best transcription {best_w_string.collapsed_string}. Assigning equal durations for each segment.')
-
-                intervals = []
-                for i, x in enumerate(best_w_string.collapsed_string):
-                    d_min = i / len(best_w_string.collapsed_string) * duration
-                    d_max = (i + 1) / len(
-                        best_w_string.collapsed_string) * duration
-
-                    intervals.append(
-                        textgrid.Interval(minTime=d_min, maxTime=d_max, mark=x))
-
-                tier = textgrid.IntervalTier('segments')
-                tier.intervals = intervals
-                word_tier = make_word_tier(tier, best_w_string)
-                tg = textgrid.TextGrid()
-                tg.tiers.append(word_tier)
-                tg.tiers.append(tier)
-                tg.write(tgname)
-                continue
-
-            make_textgrid(best_seq, tgname, duration, best_w_string,
-                          interpolate=use_interp, probs=best_M.T)
     if use_ensemble:
         print('ENSEMBLING', flush=True)
 
@@ -589,6 +500,132 @@ def run_maps_cli():
         if rm_ensemble:
             for n in all_tg_names:
                 n.unlink(missing_ok=True)
+
+
+def apply_model(
+        add_sil, args, filenames, m_I, m_name,
+        model_names, overwrite, quiet, use_ensemble,
+        use_interp, word2phone
+):
+    global duration, mfcc, delta, seq, intervals, tier
+
+    # if m_name.suffix == '.tf':
+    #     warnings.warn('TensorFlow has stopped supporting the tf format. Your models may need to be updated to the keras or h5 formats for long-term functionality.')
+    #     m = tf.keras.layers.TFSMLayer(m_name, call_endpoint='serving_default')
+    m = load_model(m_name, compile=False)
+    print(f'USING MODEL {m_name.name} ({m_I}/{len(model_names)})',
+          flush=True)
+    if not quiet:
+        filenames = tqdm(filenames)
+    for tgname_base, wavname, transcription in filenames:
+
+        if use_ensemble:
+            tgname = tgname_base.parent / tgname_base.parts[-1].replace(
+                '.TextGrid', f'_{m_name.stem}.TextGrid')
+        else:
+            tgname = tgname_base
+
+        if tgname.is_file() and not overwrite:
+            continue
+
+        sr, samples = wavfile.read(wavname)
+        duration = samples.size / sr  # convert samples to seconds
+
+        mfcc = psf.mfcc(samples, sr, winstep=FRAME_INTERVAL)
+        delta = psf.delta(mfcc, 2)
+        deltadelta = psf.delta(delta, 2)
+
+        x = np.hstack((mfcc, delta, deltadelta))
+        x = np.expand_dims(x, axis=0)
+
+        yhat = m.predict(x, verbose=0)
+
+        with open(transcription, 'r') as f:
+            word_labels = f.read().upper().split()
+
+        if add_sil and duration >= 0.045:
+            word_labels = ['sil'] + word_labels + ['sil']
+        elif add_sil:
+            warnings.warn(
+                f'Silence segments not added to ends of transcription for {wavname} because duration of {duration} s is too short to have silence padding.')
+        word_chain = [word2phone[w] for w in word_labels]
+
+        best_score = np.inf
+
+        check_variants = args['check_variants']
+        best_w_string = 0
+
+        # Iterate through pronunciation variants to choose best alignment
+        # TODO: This iteration only checks segmental differences; stress differences won't get evaluated
+        #   and may end up semi-randomly chosen (or choose only first option)
+        #
+        # This method will very quickly cause combinatoric explosion since function words have
+        # several variants
+        for c in itertools.product(*word_chain):
+
+            # Remove empty 'sil' options
+            if add_sil:
+                this_word_labels = [x for cI, x in zip(c, word_labels) if
+                                    cI]
+                c = [x for x in c if x]
+            else:
+                this_word_labels = word_labels
+
+            w_string = WordString(this_word_labels, c)
+            if add_sil and len(w_string.collapsed_string) > (
+                    duration - 0.015) / 0.01:
+                if this_word_labels[0] == 'sil':
+                    this_word_labels = this_word_labels[1:]
+                    c = c[1:]
+                    warnings.warn(
+                        f'File {wavname} with duration {duration} too short for adding silence to transcription {w_string.collapsed_string}. Removing first silence label.')
+                if this_word_labels[-1] == 'sil':
+                    this_word_labels = this_word_labels[:-1]
+                    c = c[:-1]
+                    warnings.warn(
+                        f'File {wavname} with duration {duration} too short for adding silence to transcription {w_string.collapsed_string}. Removing final silence label.')
+
+                w_string = WordString(this_word_labels, c)
+
+            if best_w_string == 0:
+                best_w_string = w_string
+
+            seq, M = force_align(w_string.collapsed_string, yhat)
+            if M[-1, -1] < best_score:
+                best_seq = seq
+                best_M = M
+                best_score = M[-1, -1]
+                best_w_string = w_string
+
+            if not check_variants:
+                break
+
+        n_segs = len(best_w_string.collapsed_string)
+        if n_segs > 1 and duration < 0.015 + (0.01 * n_segs):
+            warnings.warn(
+                f'File {wavname} with duration {duration} too short for collapsed {len(best_w_string.collapsed_string)}-segment best transcription {best_w_string.collapsed_string}. Assigning equal durations for each segment.')
+
+            intervals = []
+            for i, x in enumerate(best_w_string.collapsed_string):
+                d_min = i / len(best_w_string.collapsed_string) * duration
+                d_max = (i + 1) / len(
+                    best_w_string.collapsed_string) * duration
+
+                intervals.append(
+                    textgrid.Interval(minTime=d_min, maxTime=d_max, mark=x))
+
+            tier = textgrid.IntervalTier('segments')
+            tier.intervals = intervals
+            word_tier = make_word_tier(tier, best_w_string)
+            tg = textgrid.TextGrid()
+            tg.tiers.append(word_tier)
+            tg.tiers.append(tier)
+            tg.write(tgname)
+            continue
+
+        make_textgrid(best_seq, tgname, duration, best_w_string,
+                      interpolate=use_interp, probs=best_M.T)
+    # return filenames
 
 
 if __name__ == '__main__':
