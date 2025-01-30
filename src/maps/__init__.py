@@ -1,1 +1,1 @@
-from .cli import run_maps_cli
+from .maps_api import run_maps_cli
