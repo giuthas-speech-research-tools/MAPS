@@ -29,11 +29,15 @@ EPS = 1e-8
 FRAME_LENGTH = 0.025 # 25 ms expressed as seconds
 FRAME_INTERVAL = 0.01 # 10 ms expressed as seconds
 
-phones = 'h#	q	eh	dx	iy	r	ey	ix	tcl	sh	ow	z	s	hh	aw	m	t	er	l	w	aa	hv	ae	dcl	y	axr	d	kcl	k	ux	ng	gcl	g	ao	epi	ih	p	ay	v	n	f	jh	ax	en	oy	dh	pcl	ah	bcl	el	zh	uw	pau	b	uh	th	ax-h	em	ch	nx	eng'.split()
+phones = ('h#	q	eh	dx	iy	r	ey	ix	tcl	sh	ow	z	s	hh	aw	m	'
+          't	er	l	w	aa	hv	ae	dcl	y	axr	d	kcl	k	ux	ng	gcl	'
+          'g	ao	epi	ih	p	ay	v	n	f	jh	ax	en	oy	dh	pcl	ah	'
+          'bcl	el	zh	uw	pau	b	uh	th	ax-h	em	ch	nx	eng').split()
 
 num2phn = {i: p for i, p in enumerate(phones)}
 phn2num = {p: i for i, p in enumerate(phones)}
 phn2num['sil'] = phn2num['h#']
+
 
 class PhoneLabel:
 
@@ -46,6 +50,7 @@ class PhoneLabel:
     
         return str([self.phone, self.duration])
         
+
 class WordString:
 
     def __init__(self, words, pronunciations):
@@ -53,13 +58,19 @@ class WordString:
         self.pronunciations = pronunciations
         
         self.phone_string = list(itertools.chain(*pronunciations))
-        self.collapsed_string = collapse([re.sub(r'[0-9]', '', x) for x in self.phone_string])
+        self.collapsed_string = collapse(
+            [re.sub(r'[0-9]', '', x) for x in self.phone_string])
         
         self.did_collapse = len(self.phone_string) != len(self.collapsed_string)
         
     def __str__(self):
-        return str([self.words, f'collapsed_diff={self.did_collapse}', self.pronunciations])
+        return str(
+            [self.words,
+             f'collapsed_diff={self.did_collapse}',
+             self.pronunciations
+             ])
     
+
 def force_align(collapsed, yhat):
 
     yhat = np.squeeze(yhat, 0)
@@ -76,7 +87,8 @@ def force_align(collapsed, yhat):
         else:
             seq[-1].duration += 1
     return seq, M
-    
+
+
 def make_textgrid(seq, tgname, maxTime, words, interpolate=True, probs=None):
     '''
     Side-effect of writing TextGrid to disk
@@ -84,9 +96,9 @@ def make_textgrid(seq, tgname, maxTime, words, interpolate=True, probs=None):
     
     if interpolate and np.all(probs == None):
     
-        raise ValueError('If using interpolation, the alignment matrix must also be passed in through the probs argument')
-        
-    
+        raise ValueError('If using interpolation, the alignment matrix must '
+                         'also be passed in through the probs argument')
+
     tg = textgrid.TextGrid()
     tier = textgrid.IntervalTier()
     tier.name = 'phones'
@@ -169,6 +181,7 @@ def make_textgrid(seq, tgname, maxTime, words, interpolate=True, probs=None):
     
     tg.write(tgname)
 
+
 def to_bucket_fmt(s):
 
     s = [re.sub(r'[0-9]', '', x) for x in s]
@@ -184,7 +197,8 @@ def to_bucket_fmt(s):
         count += 1
     buckets.append((prev, count))
     return buckets
-    
+
+
 def unmerge_phones(tier, words):
 
     collapsed_bucket = to_bucket_fmt(words.collapsed_string)
@@ -194,6 +208,7 @@ def unmerge_phones(tier, words):
 
     for i, (c, u) in enumerate(zip(collapsed_bucket, uncollapsed_bucket)):
 
+        print(i, len(tier.intervals))
         dur = tier.intervals[i].maxTime - tier.intervals[i].minTime
         chunk_dur = dur / u[1]
         mint = tier.intervals[i].minTime
@@ -206,7 +221,8 @@ def unmerge_phones(tier, words):
 
     tier.intervals = intervals
     return
-    
+
+
 def make_word_tier(segment_tier, words):
 
     phone_string = list(itertools.chain(words.phone_string))
@@ -215,7 +231,8 @@ def make_word_tier(segment_tier, words):
     words_int.name = 'words'
     word_ends = np.cumsum([len(p) for p in words.pronunciations]) - 1
     maxTime = segment_tier[word_ends[0]].maxTime
-    interval = textgrid.Interval(minTime=0, maxTime=maxTime, mark=words.words[0])
+    interval = textgrid.Interval(
+        minTime=0, maxTime=maxTime, mark=words.words[0])
     words_int.intervals.append(interval)
     
     for w, w_end in zip(words.words[1:], word_ends[1:]):
@@ -225,7 +242,8 @@ def make_word_tier(segment_tier, words):
         words_int.intervals.append(interval)
     
     return words_int
-    
+
+
 def interpolated_part(endCur, phone_n, probs):
 
     phone1_curr = probs[endCur, phone_n]
@@ -260,7 +278,8 @@ def run_maps_cli():
     wavname_path = Path(args['audio'])
     if not wavname_path.is_file() and not wavname_path.is_dir():
         raise RuntimeError(
-            f'Could not find {wavname_path}. Please check the spelling and try again.')
+            f'Could not find {wavname_path}. Please check the spelling and '
+            f'try again.')
     elif wavname_path.is_dir():
         wavnames = [wavname_path / Path(x) for x in os.listdir(wavname_path) if
                     x.lower().endswith('.wav')]
@@ -285,7 +304,9 @@ def run_maps_cli():
             [x for x in model_path.iterdir() if x.suffix == '.tf'])
         if not model_names:
             raise RuntimeError(
-                f'Could not find a model named {model_path}, nor any models within that path. Please check spelling and file extensions and try again.')
+                f'Could not find a model named {model_path}, nor any models '
+                f'within that path. Please check spelling and file extensions '
+                f'and try again.')
     else:
         model_names = [model_path]
     use_ensemble = len(model_names) > 1
@@ -294,7 +315,8 @@ def run_maps_cli():
     transcription_path = Path(args['text'])
     if not transcription_path.is_file() and not transcription_path.is_dir():
         raise RuntimeError(
-            f'Could not find {transcription_path}. Please check the spelling and try again.')
+            f'Could not find {transcription_path}. Please check the spelling '
+            f'and try again.')
     elif transcription_path.is_dir():
         transcriptions = [transcription_path / Path(x.name).with_suffix('.txt')
                           for x in wavnames]
@@ -311,7 +333,10 @@ def run_maps_cli():
             mismatched.append(t)
     if mismatched:
         raise RuntimeError(
-            f'The following files did not have a corresponding WAV or txt match. Please add matches or remove the files. Note that name matching is case-sensitive.\n{",".join(str(x) for x in mismatched)}')
+            f'The following files did not have a corresponding WAV or txt '
+            f'match. Please add matches or remove the files. Note that name '
+            f'matching is case-sensitive.\n'
+            f'{",".join(str(x) for x in mismatched)}')
     d_path = Path(args['dict'])
     if not d_path.is_file():
         raise RuntimeError(
@@ -329,7 +354,9 @@ def run_maps_cli():
     ood_words = set([w for w in word_list if w not in word2phone])
     if ood_words:
         raise RuntimeError(
-            f'The following words were not found in the dictionary. Please add them to the dictionary and run the aligner again.\n{", ".join(ood_words)}')
+            f'The following words were not found in the dictionary. Please '
+            f'add them to the dictionary and run the aligner again.\n'
+            f'{", ".join(ood_words)}')
     quiet = args['quiet']
     filenames = list(zip(tgnames, wavnames, transcriptions))
     if not quiet:
@@ -368,7 +395,8 @@ def run_maps_cli():
         print('ENSEMBLING', flush=True)
 
         if ensemble_table:
-            f_path = f'{"_".join(wavname_path.parts)}_{model_path.name}_alignment_results.tsv'
+            f_path = (f'{"_".join(wavname_path.parts)}_{model_path.name}'
+                      f'_alignment_results.tsv')
             col_names = ['file', 'word', 'word_mintime', 'word_maxtime',
                          'segment', 'segment_mintime', 'segment_maxtime',
                          'segment_lo_ci', 'segment_hi_ci']
@@ -388,8 +416,8 @@ def run_maps_cli():
             tg_names = list()
 
             for m_name in model_names:
-                tail = tgname_base.parts[-1].replace('.TextGrid',
-                                                     f'_{m_name.stem}.TextGrid')
+                tail = tgname_base.parts[-1].replace(
+                    '.TextGrid', f'_{m_name.stem}.TextGrid')
                 t = tgname_base.parent / tail
                 tg_names.append(t)
 
@@ -510,7 +538,9 @@ def apply_model(
     global duration, mfcc, delta, seq, intervals, tier
 
     # if m_name.suffix == '.tf':
-    #     warnings.warn('TensorFlow has stopped supporting the tf format. Your models may need to be updated to the keras or h5 formats for long-term functionality.')
+    #     warnings.warn('TensorFlow has stopped supporting the tf format. Your '
+    #     'models may need to be updated to the keras or h5 formats for '
+    #     'long-term functionality.')
     #     m = tf.keras.layers.TFSMLayer(m_name, call_endpoint='serving_default')
     m = load_model(m_name, compile=False)
     print(f'USING MODEL {m_name.name} ({m_I}/{len(model_names)})',
@@ -547,7 +577,9 @@ def apply_model(
             word_labels = ['sil'] + word_labels + ['sil']
         elif add_sil:
             warnings.warn(
-                f'Silence segments not added to ends of transcription for {wavname} because duration of {duration} s is too short to have silence padding.')
+                f'Silence segments not added to ends of transcription for '
+                f'{wavname} because duration of {duration} s is too short to '
+                f'have silence padding.')
         word_chain = [word2phone[w] for w in word_labels]
 
         best_score = np.inf
@@ -556,11 +588,12 @@ def apply_model(
         best_w_string = 0
 
         # Iterate through pronunciation variants to choose best alignment
-        # TODO: This iteration only checks segmental differences; stress differences won't get evaluated
-        #   and may end up semi-randomly chosen (or choose only first option)
+        # TODO: This iteration only checks segmental differences; stress
+        #  differences won't get evaluated
+        #  and may end up semi-randomly chosen (or choose only first option)
         #
-        # This method will very quickly cause combinatoric explosion since function words have
-        # several variants
+        # This method will very quickly cause combinatoric explosion since
+        # function words have several variants
         for c in itertools.product(*word_chain):
 
             # Remove empty 'sil' options
@@ -578,12 +611,18 @@ def apply_model(
                     this_word_labels = this_word_labels[1:]
                     c = c[1:]
                     warnings.warn(
-                        f'File {wavname} with duration {duration} too short for adding silence to transcription {w_string.collapsed_string}. Removing first silence label.')
+                        f'File {wavname} with duration {duration} too short '
+                        f'for adding silence to transcription '
+                        f'{w_string.collapsed_string}. Removing first silence '
+                        f'label.')
                 if this_word_labels[-1] == 'sil':
                     this_word_labels = this_word_labels[:-1]
                     c = c[:-1]
                     warnings.warn(
-                        f'File {wavname} with duration {duration} too short for adding silence to transcription {w_string.collapsed_string}. Removing final silence label.')
+                        f'File {wavname} with duration {duration} too short '
+                        f'for adding silence to transcription '
+                        f'{w_string.collapsed_string}. Removing final silence '
+                        f'label.')
 
                 w_string = WordString(this_word_labels, c)
 
@@ -603,7 +642,10 @@ def apply_model(
         n_segs = len(best_w_string.collapsed_string)
         if n_segs > 1 and duration < 0.015 + (0.01 * n_segs):
             warnings.warn(
-                f'File {wavname} with duration {duration} too short for collapsed {len(best_w_string.collapsed_string)}-segment best transcription {best_w_string.collapsed_string}. Assigning equal durations for each segment.')
+                f'File {wavname} with duration {duration} too short for '
+                f'collapsed {len(best_w_string.collapsed_string)}-segment '
+                f'best transcription {best_w_string.collapsed_string}. '
+                f'Assigning equal durations for each segment.')
 
             intervals = []
             for i, x in enumerate(best_w_string.collapsed_string):

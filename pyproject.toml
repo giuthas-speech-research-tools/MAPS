@@ -5,7 +5,7 @@ description = "Mason-Alberta Phonetic Segmenter"
 readme = "README.md"
 authors = [
   {email = "matthew.curtis.kelley@gmail.com"},
-  {name = "Matthew C. Kelley, Scott James Perry, Benjamin V. Tucker, Pertti Palo"},
+  {name = "Matthew C. Kelley, Scott James Perry, Benjamin V. Tucker"},
 ]
 requires-python = ">=3.11.11,<3.12"
 dependencies = [
