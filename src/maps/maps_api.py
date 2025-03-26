@@ -1,5 +1,4 @@
 import os
-from functools import partial
 import multiprocessing as mp
 import re
 import itertools
@@ -26,8 +25,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 EPS = 1e-8
 
-FRAME_LENGTH = 0.025 # 25 ms expressed as seconds
-FRAME_INTERVAL = 0.01 # 10 ms expressed as seconds
+FRAME_LENGTH = 0.025  # 25 ms expressed as seconds
+FRAME_INTERVAL = 0.01  # 10 ms expressed as seconds
 
 phones = ('h#	q	eh	dx	iy	r	ey	ix	tcl	sh	ow	z	s	hh	aw	m	'
           't	er	l	w	aa	hv	ae	dcl	y	axr	d	kcl	k	ux	ng	gcl	'
@@ -94,7 +93,7 @@ def make_textgrid(seq, tgname, maxTime, words, interpolate=True, probs=None):
     Side-effect of writing TextGrid to disk
     '''
     
-    if interpolate and np.all(probs == None):
+    if interpolate and np.all(probs is None):
     
         raise ValueError('If using interpolation, the alignment matrix must '
                          'also be passed in through the probs argument')
@@ -107,7 +106,8 @@ def make_textgrid(seq, tgname, maxTime, words, interpolate=True, probs=None):
     if len(seq) == 1:
         last_interval = textgrid.Interval(curr_dur, maxTime, seq[-1].phone)
         tier.intervals.append(last_interval)
-        if words.did_collapse: unmerge_phones(tier, words)
+        if words.did_collapse:
+            unmerge_phones(tier, words)
         word_tier = make_word_tier(tier, words)
         tg.tiers.append(word_tier)
         tg.tiers.append(tier)

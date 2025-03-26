@@ -1,4 +1,5 @@
 version = 1
+revision = 1
 requires-python = ">=3.11.11, <3.12"
 
 [[package]]
@@ -258,7 +259,7 @@ wheels = [
 
 [[package]]
 name = "mason-alberta-phonetic-segmenter"
-version = "0.4.0"
+version = "0.4.1"
 source = { editable = "." }
 dependencies = [
     { name = "natsort" },
